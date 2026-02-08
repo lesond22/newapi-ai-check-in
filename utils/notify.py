@@ -2,6 +2,11 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from typing import Literal
+import hmac
+import hashlib
+import base64
+import urllib.parse
+import time
 
 from curl_cffi import requests as curl_requests
 
@@ -34,6 +39,10 @@ class NotificationKit:
 	@property
 	def dingding_webhook(self):
 		return os.getenv('DINGDING_WEBHOOK')
+
+	@property
+    def dingding_secret(self):
+        return os.getenv('DINGDING_SECRET')
 
 	@property
 	def feishu_webhook(self):
@@ -81,12 +90,35 @@ class NotificationKit:
 		data = {'title': title, 'desp': content}
 		curl_requests.post(f'https://sctapi.ftqq.com/{self.server_push_key}.send', json=data, timeout=30)
 
-	def send_dingtalk(self, title: str, content: str):
-		if not self.dingding_webhook:
-			raise ValueError('DingTalk Webhook not configured')
+	# def send_dingtalk(self, title: str, content: str):
+	# 	if not self.dingding_webhook:
+	# 		raise ValueError('DingTalk Webhook not configured')
 
-		data = {'msgtype': 'text', 'text': {'content': f'{title}\n{content}'}}
-		curl_requests.post(self.dingding_webhook, json=data, timeout=30)
+	# 	data = {'msgtype': 'text', 'text': {'content': f'{title}\n{content}'}}
+	# 	curl_requests.post(self.dingding_webhook, json=data, timeout=30)
+
+	# 重写钉钉通知方法，添加钉钉机器人加签的支持
+	def send_dingtalk(self, title: str, content: str):
+        if not self.dingding_webhook:
+            raise ValueError('DingTalk Webhook not configured')
+
+        webhook = self.dingding_webhook
+
+        # 如果配置了加签密钥，计算签名
+        if self.dingding_secret:
+            timestamp = str(round(time.time() * 1000))
+            secret = self.dingding_secret
+            string_to_sign = f'{timestamp}\n{secret}'
+            hmac_code = hmac.new(
+                secret.encode('utf-8'),
+                string_to_sign.encode('utf-8'),
+                digestmod=hashlib.sha256
+            ).digest()
+            sign = urllib.parse.quote_plus(base64.b64encode(hmac_code))
+            webhook = f'{webhook}&timestamp={timestamp}&sign={sign}'
+
+        data = {'msgtype': 'text', 'text': {'content': f'{title}\n{content}'}}
+        curl_requests.post(webhook, json=data, timeout=30)
 
 	def send_feishu(self, title: str, content: str):
 		if not self.feishu_webhook:
