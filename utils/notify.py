@@ -41,8 +41,8 @@ class NotificationKit:
 		return os.getenv('DINGDING_WEBHOOK')
 
 	@property
-    def dingding_secret(self):
-        return os.getenv('DINGDING_SECRET')
+	def dingding_secret(self):
+		return os.getenv('DINGDING_SECRET')
 
 	@property
 	def feishu_webhook(self):
