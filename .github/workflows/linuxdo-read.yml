@@ -102,7 +102,13 @@ jobs:
         ACCOUNTS: ${{ secrets.ACCOUNTS_LINUX_DO }}
         LINUXDO_BASE_TOPIC_ID: ${{ secrets.LINUXDO_BASE_TOPIC_ID }}
         DEBUG: ${{ github.event_name == 'workflow_dispatch' && inputs.debug || vars.DEBUG || 'false' }}
+        # 钉钉通知
         DINGDING_WEBHOOK: ${{ secrets.DINGDING_WEBHOOK }}
+        DINGDING_SECRET: ${{ secrets.DINGDING_SECRET }}
+        # Telegram 通知
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        # 其他通知渠道
         EMAIL_USER: ${{ secrets.EMAIL_USER }}
         EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
         EMAIL_TO: ${{ secrets.EMAIL_TO }}
