@@ -7,6 +7,7 @@ import asyncio
 import hashlib
 import json
 import os
+import re
 import sys
 import random
 from datetime import datetime
@@ -467,7 +468,16 @@ class LinuxDoReadPosts:
 
                 # 浏览帖子
                 print(f"ℹ️ {self.masked_username}: Starting to read posts...")
-                last_topic_id, read_count = await self._read_posts_from_list(page, topic_ids, max_posts)
+                # 优先从 latest.json 获取帖子 ID
+                topic_ids = await self._get_topic_ids_from_latest(page)
+
+                if topic_ids:
+                    # 使用 latest.json 获取的帖子列表
+                    last_topic_id, read_count = await self._read_posts_from_list(page, topic_ids, max_posts)
+                else:
+                    # Fallback 到顺序遍历模式
+                    print(f"⚠️ {self.masked_username}: Falling back to sequential mode...")
+                    last_topic_id, read_count = await self._read_posts_sequential(page, base_topic_id, max_posts)
 
                 print(f"✅ {self.masked_username}: Successfully read {read_count} posts")
                 return True, {
