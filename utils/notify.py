@@ -98,9 +98,9 @@ class NotificationKit:
 	# 	curl_requests.post(self.dingding_webhook, json=data, timeout=30)
 
 	# 重写钉钉通知方法，添加钉钉机器人加签的支持
-	def send_dingtalk(self, title: str, content: str):
-        if not self.dingding_webhook:
-            raise ValueError('DingTalk Webhook not configured')
+    def send_dingtalk(self, title: str, content: str):
+		if not self.dingding_webhook:
+			raise ValueError('DingTalk Webhook not configured')
 
         webhook = self.dingding_webhook
 
