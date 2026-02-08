@@ -179,28 +179,114 @@ class LinuxDoReadPosts:
         except IOError as e:
             print(f"⚠️ {self.masked_username}: Failed to save topic ID: {e}")
 
-    async def _read_posts(self, page, base_topic_id: int, max_posts: int) -> tuple[int, int]:
-        """浏览帖子
+    # 添加获取最新帖子的topic id的方法，访问https://linux.do/latest.json
+    async def _get_topic_ids_from_latest(self, page) -> list:
+        """从 latest.json 获取有效的帖子 ID 列表"""
+        try:
+            print(f"ℹ️ {self.masked_username}: Fetching topic IDs from latest.json...")
+            await page.goto("https://linux.do/latest.json", wait_until="domcontentloaded")
+            await page.wait_for_timeout(3000)
 
-        从 base_topic_id 开始，随机向上加 1-5 打开链接，
-        查找 class timeline-replies 标签判断帖子是否有效。
-        根据剩余可读数量自动滚动浏览。
+            # 获取页面内容
+            body = await page.query_selector('body')
+            if not body:
+                print(f"⚠️ {self.masked_username}: Cannot find body element")
+                return []
 
-        Args:
-            page: Camoufox 页面对象
-            max_posts: 最大浏览帖子数
+            json_str = await body.inner_text()
 
-        Returns:
-            (最后浏览的帖子ID, 实际阅读数量)
-        """
+            # 尝试解析 JSON
+            data = json.loads(json_str)
 
-        # 从缓存文件读取上次的 topic_id
+            topic_ids = []
+            if 'topic_list' in data and 'topics' in data['topic_list']:
+                for topic in data['topic_list']['topics']:
+                    if 'id' in topic:
+                        topic_ids.append(topic['id'])
+
+            print(f"✅ {self.masked_username}: Got {len(topic_ids)} topic IDs from latest.json")
+            return topic_ids
+
+        except json.JSONDecodeError as e:
+            print(f"⚠️ {self.masked_username}: Failed to parse latest.json: {e}")
+            return []
+        except Exception as e:
+            print(f"⚠️ {self.masked_username}: Error fetching latest.json: {e}")
+            return []
+    
+    async def _read_posts_from_list(self, page, topic_ids: list, max_posts: int) -> tuple[int, int]:
+        """从给定的帖子 ID 列表中阅读帖子"""
+        # 随机打乱顺序
+        random.shuffle(topic_ids)
+
+        read_count = 0
+        last_topic_id = 0
+
+        for topic_id in topic_ids:
+            if read_count >= max_posts:
+                break
+
+            topic_url = f"https://linux.do/t/topic/{topic_id}"
+
+            try:
+                print(f"ℹ️ {self.masked_username}: Opening topic {topic_id}...")
+                await page.goto(topic_url, wait_until="domcontentloaded")
+                await page.wait_for_timeout(3000)
+
+                timeline_element = await page.query_selector(".timeline-replies")
+
+                if timeline_element:
+                    inner_text = await timeline_element.inner_text()
+                    print(f"✅ {self.masked_username}: Topic {topic_id} - Progress: {inner_text.strip()}")
+
+                    try:
+                        parts = inner_text.strip().split("/")
+                        if len(parts) == 2 and parts[0].strip().isdigit() and parts[1].strip().isdigit():
+                            current_page = int(parts[0].strip())
+                            total_pages = int(parts[1].strip())
+
+                            if current_page < total_pages:
+                                print(
+                                    f"ℹ️ {self.masked_username}: Scrolling to read "
+                                    f"remaining {total_pages - current_page} pages..."
+                                )
+                                await self._scroll_to_read(page)
+
+                                read_count += total_pages - current_page
+                            else:
+                                read_count += 1
+
+                            last_topic_id = topic_id
+                            print(
+                                f"ℹ️ {self.masked_username}: {read_count} read, "
+                                f"{max(0, max_posts - read_count)} remaining..."
+                            )
+                        else:
+                            print(f"⚠️ {self.masked_username}: Timeline read error (content: {inner_text}), skipping")
+                            continue
+                    except (ValueError, IndexError) as e:
+                        print(f"⚠️ {self.masked_username}: Failed to parse progress: {e}")
+                        continue
+
+                    # 修改：延迟改为 2-5 秒
+                    await page.wait_for_timeout(random.randint(2000, 5000))
+                else:
+                    print(f"⚠️ {self.masked_username}: Topic {topic_id} not accessible, skipping...")
+
+            except Exception as e:
+                print(f"⚠️ {self.masked_username}: Error reading topic {topic_id}: {e}")
+                                            
+
+        return last_topic_id, read_count
+        
+    async def _read_posts_sequential(self, page, base_topic_id: int, max_posts: int) -> tuple[int, int]:
+        """顺序遍历模式（fallback）"""
         cached_topic_id = self._load_topic_id()
 
         # 取环境变量和缓存中的最大值
         current_topic_id = max(base_topic_id, cached_topic_id)
         print(
-            f"ℹ️ {self.masked_username}: Starting from topic ID {current_topic_id} "
+            f"ℹ️ {self.masked_username}: [Fallback] Starting from topic ID {current_topic_id} "
             f"(base: {base_topic_id}, cached: {cached_topic_id})"
         )
 
@@ -381,7 +467,7 @@ class LinuxDoReadPosts:
 
                 # 浏览帖子
                 print(f"ℹ️ {self.masked_username}: Starting to read posts...")
-                last_topic_id, read_count = await self._read_posts(page, base_topic_id, max_posts)
+                last_topic_id, read_count = await self._read_posts_from_list(page, topic_ids, max_posts)
 
                 print(f"✅ {self.masked_username}: Successfully read {read_count} posts")
                 return True, {
