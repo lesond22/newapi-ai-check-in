@@ -203,9 +203,13 @@ class LinuxDoSignIn:
                                 # 即使超时，也尝试继续
                                 pass
 
-                            # 保存新的会话状态
-                            await context.storage_state(path=cache_file_path)
-                            print(f"✅ {self.account_name}: Storage state saved to cache file")
+                            # 只在登录成功（离开登录页）时才保存缓存，避免污染自动阅读的有效缓存
+                            current_url = page.url
+                            if "linux.do/login" not in current_url:
+                                await context.storage_state(path=cache_file_path)
+                                print(f"✅ {self.account_name}: Storage state saved to cache file")
+                            else:
+                                print(f"⚠️ {self.account_name}: Still on login page, skip saving storage state to preserve existing cache")
 
                         except Exception as e:
                             print(f"❌ {self.account_name}: Error occurred while signing in linux.do: {e}")
