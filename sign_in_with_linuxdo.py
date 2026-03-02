@@ -104,6 +104,27 @@ class LinuxDoSignIn:
 
                     if os.path.exists(cache_file_path):
                         try:
+                            # 先访问 linux.do 主站，预热 Cloudflare clearance
+                            print(f"ℹ️ {self.account_name}: Warming up Cloudflare by visiting linux.do homepage...")
+                            await page.goto("https://linux.do/", wait_until="domcontentloaded")
+                            await page.wait_for_timeout(3000)
+
+                            # 检查是否遇到 Cloudflare 验证
+                            page_title = await page.title()
+                            page_content = await page.content()
+                            if "Just a moment" in page_title or "Checking your browser" in page_content:
+                                print(f"ℹ️ {self.account_name}: Cloudflare challenge on homepage, auto-solving...")
+                                try:
+                                    await solver.solve_captcha(
+                                        captcha_container=page, captcha_type=CaptchaType.CLOUDFLARE_INTERSTITIAL
+                                    )
+                                    print(f"✅ {self.account_name}: Cloudflare challenge on homepage solved")
+                                    await page.wait_for_timeout(5000)
+                                except Exception as solve_err:
+                                    print(f"⚠️ {self.account_name}: Homepage Cloudflare auto-solve failed: {solve_err}")
+                            else:
+                                print(f"✅ {self.account_name}: No Cloudflare challenge on homepage, cookies warmed up")
+                                  
                             print(f"ℹ️ {self.account_name}: Checking login status at {oauth_url}")
                             # 直接访问授权页面检查是否已登录
                             response = await page.goto(oauth_url, wait_until="domcontentloaded")
