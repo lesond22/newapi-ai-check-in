@@ -85,6 +85,16 @@ jobs:
         uv run camoufox fetch
         echo "✅ Camoufox 浏览器安装完成"
 
+    # 读取环境变量中配置的Linuxdo登录缓存（本地登录保存缓存，上传到环境变量）
+    - name: 从 Secret 还原 Linux.do 登录缓存
+      if: env.LINUXDO_STORAGE_STATE != ''
+      env:
+        LINUXDO_STORAGE_STATE: ${{ secrets.LINUXDO_STORAGE_STATE }}
+      run: |
+        mkdir -p storage-states
+        echo "$LINUXDO_STORAGE_STATE" > storage-states/linuxdo_c7b8a9bf_storage_state.json
+        echo "✅ Linux.do 登录缓存已从 Secret 还原"
+
     - name: 恢复登录状态缓存
       uses: actions/cache/restore@v4
       with:
